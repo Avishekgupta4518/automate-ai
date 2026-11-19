@@ -1,7 +1,9 @@
 import React from "react";
 
 const Integration = () => {
-  return <div></div>;
+  return <div>
+    Integration page
+  </div>;
 };
 
 export default Integration;
