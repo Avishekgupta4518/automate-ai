@@ -23,6 +23,21 @@ const findTool = (tools, names) => {
   return tools.find((tool) => names?.includes(tool.name));
 };
 
+const limitMessageContext = (message, maxChars = 4000) => {
+  if (typeof message.content !== "string") {
+    return message;
+  }
+
+  if (message.content.length <= maxChars) {
+    return message;
+  }
+
+  return {
+    ...message,
+    content: message.content.slice(0, maxChars) + `/n[content truncated]`,
+  };
+};
+
 export const createAgentGraph = async (agent, userId) => {
   const mcpTools = await getMcpTools();
   console.log("mcpTools", mcpTools);
@@ -169,8 +184,9 @@ GENERAL TOOL RULES:
     "create_calendar_event",
     "publish_instagram_image",
   ]);
+
   const chatNode = async (state) => {
-    const recentMessages = state.messages.slice(-4);
+    const recentMessages = state.messages.slice(-4).map((message)=>limitMessageContext(message))
     const response = await llmWithTools.invoke([
       new SystemMessage(systemPrompt),
       ...recentMessages,
