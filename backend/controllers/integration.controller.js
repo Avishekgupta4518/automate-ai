@@ -15,7 +15,7 @@ export const connectGoogle = async (req, res) => {
         purpose: "google-oauth",
       },
       process.env.JWT_SECRET,
-      { expiresIn: "10m" },
+      { expiresIn: "2h" },
     );
 
     const url = googleOAuthClient.generateAuthUrl({
@@ -129,7 +129,7 @@ export const googleCallback = async (req, res) => {
     await connection.save();
 
     return res.redirect(
-      `${process.env.FRONTEND_URL}/integrations?google=connected`,
+      `${process.env.FRONTEND_URL}/`,
     );
   } catch (error) {
     console.error("Google Callback Error:", error);
@@ -158,7 +158,7 @@ export const connectInstagram = async (req, res) => {
         purpose: "instagram-oauth",
       },
       process.env.JWT_SECRET,
-      { expiresIn: "10m" },
+      { expiresIn: "2h" },
     );
 
     const params = new URLSearchParams({
@@ -225,8 +225,6 @@ export const instagramCallback = async (req, res) => {
         timeout: 15000,
       },
     );
-    console.log("Token Response:", tokenResponse.data);
-
     const userAccessToken = tokenResponse.data.access_token;
 
     const assignedAccounts = await axios.get(
@@ -249,7 +247,15 @@ export const instagramCallback = async (req, res) => {
       );
     }
 
-    const dynamicAccountId = instagramAccounts[0];
+    const dynamicAccountId = instagramAccounts[0]?.id;
+    if (!dynamicAccountId) {
+      console.error(
+        "Target Account payload lacks a valid unique object ID property.",
+      );
+      return res.status(400).json({
+        message: "Invalid payload layout from Meta graph mapping parameters.",
+      });
+    }
 
     const profile = await axios.get(
       `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/${dynamicAccountId}`,
@@ -265,7 +271,7 @@ export const instagramCallback = async (req, res) => {
     const filter = {
       userId: decoded.userId,
       provider: "instagram",
-      providerAccountId: profile.id,
+      providerAccountId: profile.data.id,
     };
 
     let connection = await Integration.findOne(filter).select(
@@ -292,13 +298,10 @@ export const instagramCallback = async (req, res) => {
 
     connection.scopes = INSTAGRAM_SCOPES;
 
-    if (tokens.access_token) {
+    if (userAccessToken) {
       connection.tokens.accessToken = encrypt(userAccessToken);
     }
-
-    if (tokens.expiry_date) {
-      connection.tokens.expiresAt = null;
-    }
+    connection.tokens.expiresAt = null;
 
     connection.status = "connected";
     connection.connectedAt = new Date();
@@ -306,7 +309,7 @@ export const instagramCallback = async (req, res) => {
     await connection.save();
 
     return res.redirect(
-      `${process.env.FRONTEND_URL}/integrations?instagram=connected`,
+      `${process.env.FRONTEND_URL}/`,
     );
   } catch (error) {
     console.error("Instagram Callback Error:", error);

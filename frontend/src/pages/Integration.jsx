@@ -1,303 +1,297 @@
-import React, { useState } from "react";
 import {
-  Search,
-  Plus,
-  Mail,
-  CalendarDays,
-  Globe,
-  Calculator,
-  CheckCircle2,
-  Plug,
+  ArrowLeft,
   ArrowUpRight,
+  Mail,
   Workflow,
-  X,
+  Check,
+  Unplug,
 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { FaInstagram } from "react-icons/fa";
+import { SlCalender } from "react-icons/sl";
+import {
+  connectGoogle,
+  connectInstagram,
+  disconnectGoogle,
+  disconnectInstagram,
+  getAllIntegrations,
+} from "@/features/integration";
+import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardContent,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
-const integrations = [
+const integrationList = [
   {
     id: "gmail",
     name: "Gmail",
     description: "Read, manage, and send emails using your AI agents.",
-    category: "Communication",
     icon: Mail,
-    color: "text-red-400",
-    bg: "bg-red-500/10",
-    connected: false,
+    provider: "google",
   },
   {
-    id: "google-calendar",
+    id: "google_calendar",
     name: "Google Calendar",
     description: "Manage events, meetings, and your daily schedule.",
-    category: "Productivity",
-    icon: CalendarDays,
-    color: "text-blue-400",
-    bg: "bg-blue-500/10",
-    connected: false,
+    icon: SlCalender,
+    provider: "google",
   },
   {
-    id: "web-search",
-    name: "Web Search",
-    description: "Search the internet for real-time information and news.",
-    category: "Research",
-    icon: Globe,
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    connected: true,
+    id: "instagram",
+    name: "Instagram",
+    description: "Publish images with AI-generated captions and hashtags.",
+    icon: FaInstagram,
+    provider: "instagram",
   },
-  {
-    id: "calculator",
-    name: "Calculator",
-    description: "Perform mathematical calculations through your AI agents.",
-    category: "Utilities",
-    icon: Calculator,
-    color: "text-purple-400",
-    bg: "bg-purple-500/10",
-    connected: true,
-  },
-];
-
-const categories = [
-  "All",
-  "Communication",
-  "Productivity",
-  "Research",
-  "Utilities",
 ];
 
 const Integration = () => {
-  const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [connections, setConnections] = useState(
-    integrations.reduce((acc, item) => {
-      acc[item.id] = item.connected;
-      return acc;
-    }, {}),
-  );
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [connecting, setConnecting] = useState(null);
+  const [disconnecting, setDisconnecting] = useState(null);
+  const [integrations, setIntegrations] = useState({});
 
-  const filteredIntegrations = integrations.filter((integration) => {
-    const matchesSearch =
-      integration.name.toLowerCase().includes(search.toLowerCase()) ||
-      integration.description.toLowerCase().includes(search.toLowerCase());
+  const handleConnect = async (id) => {
+    setConnecting(id);
+    setError("");
+    setSuccess("");
 
-    const matchesCategory =
-      activeCategory === "All" ||
-      integration.category === activeCategory;
+    try {
+      if (id === "gmail" || id === "google_calendar") {
+        const data = await connectGoogle();
 
-    return matchesSearch && matchesCategory;
-  });
+        if (!data.success) {
+          throw new Error(data.message || "Unable to connect integration.");
+        }
 
-  const connectedCount = Object.values(connections).filter(Boolean).length;
+        if (!data.url) {
+          throw new Error("Google authorization URL not received.");
+        }
 
-  const handleConnect = (id) => {
-    setConnections((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+        window.location.assign(data.url);
+        return;
+      }
+
+      if (id === "instagram") {
+        const data = await connectInstagram();
+
+        if (!data.success) {
+          throw new Error(data.message || "Unable to connect integration.");
+        }
+
+        if (!data.url) {
+          throw new Error("Instagram authorization URL not received.");
+        }
+
+        window.location.assign(data.url);
+        return;
+      }
+    } catch (error) {
+      console.error("Integration connection error:", error);
+      setError(error.response?.data?.message || error.message);
+      setConnecting(null);
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-[#09090b] text-white">
-      <div className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
-        <div className="mb-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-          <div>
-            <div className="mb-3 flex items-center gap-2 text-sm text-emerald-400">
-              <Workflow size={17} />
-              <span>Automate AI / Integrations</span>
-            </div>
+  const handleDisconnect = async (id) => {
+    setDisconnecting(id);
+    setError("");
+    setSuccess("");
 
+    const confirmed = window.confirm(
+      `Are you sure you want to disconnect ${id}?`,
+    );
+
+    if (!confirmed) {
+      setDisconnecting(null);
+      return;
+    }
+
+    try {
+      if (id === "gmail" || id === "google_calendar") {
+        const data = await disconnectGoogle();
+
+        if (!data.success) {
+          throw new Error(data.message || "Unable to disconnect Google.");
+        }
+
+        setSuccess("Disconnected Successfully");
+      }
+
+      if (id === "instagram") {
+        const data = await disconnectInstagram();
+
+        if (!data.success) {
+          throw new Error(data.message || "Unable to disconnect Instagram.");
+        }
+
+        setSuccess("Disconnected Successfully");
+      }
+
+      await fetchAllIntegrations();
+    } catch (error) {
+      console.error("Integration disconnection error:", error);
+      setError(error.response?.data?.message || error.message);
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  const fetchAllIntegrations = async () => {
+    try {
+      const data = await getAllIntegrations();
+      setIntegrations(data.integrations);
+      console.log(data.integrations);
+    } catch (error) {
+      console.error("Failed to fetch integrations:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllIntegrations();
+  }, []);
+
+  return (
+    <div className="relative min-h-screen bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,#2b2f3a_0%,#191b21_55%,#121317_100%)]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.35)_100%)]"
+      />
+
+      <div className="relative z-10 text-white">
+        <header className="z-30 flex h-16 shrink-0 items-center justify-between px-4 sm:px-6">
+          <Link to="/" className="flex items-center gap-2.5">
+            <span className="grid size-8 place-items-center rounded-lg bg-white text-zinc-900">
+              <Workflow size={17} />
+            </span>
+
+            <span className="text-sm font-medium tracking-tight">
+              Automate AI
+            </span>
+          </Link>
+
+          <Link
+            to="/"
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <ArrowLeft size={14} />
+            <span>Back to chat</span>
+          </Link>
+        </header>
+
+        <div className="relative z-10 mx-auto max-w-3xl space-y-8">
+          <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">
               Integrations
             </h1>
 
-            <p className="mt-2 text-sm text-zinc-400">
-              Connect your favorite tools and give your AI agents more
-              capabilities.
+            <p className="text-sm text-zinc-500">
+              Connect your accounts and let AutoMate AI handle tasks for you.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-              <Plug size={20} />
+          <Separator />
+
+          {error && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/[0.08] p-4">
+              <p className="text-sm text-red-300">{error}</p>
             </div>
+          )}
 
-            <div>
-              <p className="text-xl font-semibold">
-                {connectedCount}/{integrations.length}
-              </p>
-              <p className="text-xs text-zinc-500">Connected integrations</p>
+          {success && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] p-4">
+              <p className="text-sm text-emerald-300">{success}</p>
             </div>
-          </div>
-        </div>
+          )}
 
-        <div className="mb-8 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-            <p className="text-sm text-zinc-400">Total integrations</p>
-            <h2 className="mt-2 text-3xl font-semibold">
-              {integrations.length}
-            </h2>
-          </div>
-
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-            <p className="text-sm text-zinc-400">Connected</p>
-            <h2 className="mt-2 text-3xl font-semibold text-emerald-400">
-              {connectedCount}
-            </h2>
-          </div>
-
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-            <p className="text-sm text-zinc-400">Not connected</p>
-            <h2 className="mt-2 text-3xl font-semibold text-zinc-300">
-              {integrations.length - connectedCount}
-            </h2>
-          </div>
-        </div>
-
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full lg:max-w-sm">
-            <Search
-              size={18}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
-            />
-
-            <input
-              type="text"
-              placeholder="Search integrations..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.03] pl-10 pr-4 text-sm text-white outline-none transition focus:border-emerald-500/50"
-            />
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition ${
-                  activeCategory === category
-                    ? "bg-emerald-500 text-black"
-                    : "border border-white/10 bg-white/[0.03] text-zinc-400 hover:bg-white/[0.08] hover:text-white"
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Available integrations</h2>
-          <span className="text-xs text-zinc-500">
-            {filteredIntegrations.length} results
-          </span>
-        </div>
-
-        {filteredIntegrations.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredIntegrations.map((integration) => {
-              const Icon = integration.icon;
-              const isConnected = connections[integration.id];
+          <div className="space-y-4">
+            {integrationList.map((item) => {
+              const integration = integrations?.[item?.id];
+              const connected = Boolean(integration?.connected);
+              const Icon = item.icon;
+              const isConnecting = connecting === item?.id;
+              const isDisconnecting = disconnecting === item?.id;
 
               return (
-                <div
-                  key={integration.id}
-                  className="group rounded-xl border border-white/10 bg-white/[0.025] p-5 transition hover:border-white/20 hover:bg-white/[0.045]"
+                <Card
+                  key={item?.id}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] text-white shadow-[0_20px_60px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition hover:border-white/25 hover:bg-white/[0.06]"
                 >
-                  <div className="mb-5 flex items-start justify-between">
-                    <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-xl ${integration.bg} ${integration.color}`}
-                    >
-                      <Icon size={24} />
+                  <CardContent className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-zinc-900 shadow-[0_8px_24px_rgba(255,255,255,0.1)]">
+                        <Icon className="h-5 w-5" />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="font-medium text-white">
+                            {item.name}
+                          </h2>
+
+                          {!isConnecting && connected && (
+                            <Badge
+                              variant="secondary"
+                              className="gap-1 border border-emerald-400/20 bg-emerald-400/10 font-normal text-emerald-300"
+                            >
+                              <Check className="h-3 w-3" />
+                              Connected
+                            </Badge>
+                          )}
+                        </div>
+
+                        <CardTitle className="sr-only">{item.name}</CardTitle>
+
+                        <CardDescription className="max-w-md leading-relaxed">
+                          {item.description}
+                        </CardDescription>
+
+                        {connected && (
+                          <p className="pt-1 text-xs text-zinc-500">
+                            {integration.email ||
+                              integration.username ||
+                              integration.displayName}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    {isConnected ? (
-                      <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400">
-                        <CheckCircle2 size={12} />
-                        Connected
-                      </span>
-                    ) : (
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-zinc-500">
-                        Not connected
-                      </span>
-                    )}
-                  </div>
+                    <div className="flex shrink-0 gap-2">
+                      {connected ? (
+                        <Button
+                          variant="outline"
+                          disabled={isDisconnecting}
+                          onClick={() => handleDisconnect(item.id)}
+                          className="flex rounded-xl border-red-400/20 bg-red-400/[0.06] text-red-300 hover:bg-red-400/10 hover:text-red-200"
+                        >
+                          <Unplug className="mr-2 h-4 w-4" />
+                          {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                        </Button>
+                      ) : (
+                        <Button
+                          disabled={isConnecting}
+                          onClick={() => handleConnect(item.id)}
+                          className="rounded-xl border-0 bg-white text-zinc-900 hover:bg-zinc-200"
+                        >
+                          {isConnecting ? "Connecting..." : "Connect"}
 
-                  <div className="mb-5">
-                    <div className="mb-2 flex items-center justify-between">
-                      <h3 className="font-semibold">{integration.name}</h3>
-                      <span className="text-[10px] text-zinc-500">
-                        {integration.category}
-                      </span>
+                          {!isConnecting && (
+                            <ArrowUpRight className="ml-2 h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
                     </div>
-
-                    <p className="min-h-10 text-sm leading-6 text-zinc-400">
-                      {integration.description}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-white/10 pt-4">
-                    <span className="text-xs text-zinc-500">
-                      {isConnected ? "Ready to use" : "Setup required"}
-                    </span>
-
-                    <button
-                      onClick={() => handleConnect(integration.id)}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${
-                        isConnected
-                          ? "border border-white/10 text-zinc-300 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
-                          : "bg-emerald-500 text-black hover:bg-emerald-400"
-                      }`}
-                    >
-                      {isConnected ? "Disconnect" : "Connect"}
-                      <ArrowUpRight size={14} />
-                    </button>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/10 py-20 text-center">
-            <Search size={30} className="mb-4 text-zinc-600" />
-            <h3 className="font-medium">No integrations found</h3>
-            <p className="mt-2 text-sm text-zinc-500">
-              Try searching with a different name or category.
-            </p>
-            <button
-              onClick={() => {
-                setSearch("");
-                setActiveCategory("All");
-              }}
-              className="mt-4 text-sm text-emerald-400 hover:text-emerald-300"
-            >
-              Clear filters
-            </button>
-          </div>
-        )}
-
-        <div className="mt-10 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-6">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-                <Plus size={22} />
-              </div>
-
-              <div>
-                <h3 className="font-semibold">Need another integration?</h3>
-                <p className="mt-1 text-sm text-zinc-400">
-                  Expand your AI agents with more tools and services.
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() =>
-                window.location.href = "mailto:support@automateai.com"
-              }
-              className="rounded-lg border border-emerald-500/30 px-4 py-2.5 text-sm font-medium text-emerald-400 transition hover:bg-emerald-500/10"
-            >
-              Request integration
-            </button>
           </div>
         </div>
       </div>

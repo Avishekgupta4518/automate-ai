@@ -40,7 +40,7 @@ export const disconnectInstagram = async () => {
   }
 };
 
-export const getIntegrations = async () => {
+export const getAllIntegrations = async () => {
   try {
     const { data } = await api.get("/api/integrations/all");
     return data;
